@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Excel and Select Visible Columns</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        input[type="file"], label {
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        select {
+            padding: 5px;
+            margin-bottom: 10px;
+            width: 200px;
+            height: 150px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Upload an Excel File to View and Select Visible Columns</h2>
+
+    <!-- File upload input -->
+    <input type="file" id="excelFile" />
+    <br>
+
+    <!-- Dropdown for selecting multiple columns -->
+    <label for="columnSelector">Select Columns to Toggle Visibility:</label>
+    <select id="columnSelector" multiple>
+        <option value="">-- Select Columns --</option>
+    </select>
+    <button onclick="toggleColumnVisibility()">Toggle Visibility</button>
+<br>
+<!-- Filter button to show people 15 or older and of a specific rank -->
+<button onclick="filterData()">Judges</button>
+
+<!-- Table to display the parsed data -->
+<table id="dataTable">
+    <thead>
+        <tr>
+            <!-- Headers will be dynamically generated -->
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Data rows will be inserted here -->
+    </tbody>
+</table>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+<script>
+    let sheetData = [];
+    let columnNames = [];
+
+    // Function to handle the file upload and parse the Excel file
+    document.getElementById('excelFile').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const data = event.target.result;
+
+                // Read the workbook from the binary data
+                const workbook = XLSX.read(data, { type: 'binary' });
+
+                // Assuming the data is in the first sheet (change if necessary)
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                // Convert the sheet to JSON
+                sheetData = XLSX.utils.sheet_to_json(sheet);
+
+                // Get the column names from the first row of the data
+                columnNames = Object.keys(sheetData[0]);
+
+                // Log the loaded data to check
+                console.log(sheetData);
+
+                // Display the data and generate the column selector options
+                displayData(sheetData);
+                generateColumnSelector();
+            };
+            reader.readAsBinaryString(file);
+        }
+    });
+
+    // Function to display the data in the table
+    function displayData(data) {
+        const tableBody = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+        const tableHeader = document.getElementById('dataTable').getElementsByTagName('thead')[0].getElementsByTagName('tr')[0];
+
+        // Clear previous table rows and headers
+        tableBody.innerHTML = '';
+        tableHeader.innerHTML = '';
+
+        // Create table headers based on column names
+        columnNames.forEach(function (header) {
+            const th = document.createElement('th');
+            th.textContent = header;
+            tableHeader.appendChild(th);
+        });
+
+        // Loop through data and create table rows
+        data.forEach(function (row) {
+            const tr = document.createElement('tr');
+            columnNames.forEach(function (header) {
+                const td = document.createElement('td');
+                td.textContent = row[header];
+                tr.appendChild(td);
+            });
+            tableBody.appendChild(tr);
+        });
+    }
+
+    // Function to generate the column selector dropdown options
+    function generateColumnSelector() {
+        const columnSelector = document.getElementById('columnSelector');
+        columnSelector.innerHTML = '<option value="">-- Select Columns --</option>';  // Clear existing options
+
+        columnNames.forEach(function (column, index) {
+            const option = document.createElement('option');
+            option.value = index;  // Set the index as value to reference the column
+            option.textContent = column;
+            columnSelector.appendChild(option);
+        });
+    }
+
+    // Function to toggle column visibility based on the selected dropdown options
+    function toggleColumnVisibility() {
+        const columnSelector = document.getElementById('columnSelector');
+        const selectedIndices = Array.from(columnSelector.selectedOptions).map(option => parseInt(option.value));
+
+        if (selectedIndices.length > 0) {
+            // Loop through each selected index and toggle visibility
+            selectedIndices.forEach(function (columnIndex) {
+                // Toggle visibility for all rows and header for the selected column
+                const tableRows = document.getElementById('dataTable').getElementsByTagName('tr');
+                for (let i = 0; i < tableRows.length; i++) {
+                    const row = tableRows[i];
+                    const cell = row.getElementsByTagName('td')[columnIndex];
+                    if (cell) {
+                        cell.style.display = (cell.style.display === 'none' ? '' : 'none');  // Toggle visibility
+                    }
+                }
+
+                // Toggle visibility in the header row
+                const tableHeaders = document.getElementById('dataTable').getElementsByTagName('th');
+                if (tableHeaders[columnIndex]) {
+                    tableHeaders[columnIndex].style.display = (tableHeaders[columnIndex].style.display === 'none' ? '' : 'none');
+                }
+            });
+        }
+    }
+
+    // Function to filter data based on age and rank group
+    function filterData() {
+        const ageFilter = 15; // Filter for age 15 or older
+        const rankGroupFilter = ['Black 2BD-3BD (9-59)', 'Black 4BD-5BD', 'Black 1BD (9-59)']; // Multiple rank groups
+
+        const tableRows = document.getElementById('dataTable').getElementsByTagName('tr');
+
+        // Loop through each row (skip the header row)
+        for (let i = 1; i < tableRows.length; i++) {
+            const row = tableRows[i];
+            const cells = row.getElementsByTagName('td');
+            let showRow = true;
+
+            // Assuming the age data is in the "Competition Age" column
+            const ageColumnIndex = columnNames.indexOf('Competition Age'); // Find the index of the "Age" column
+            const rankColumnIndex = columnNames.indexOf('Rank Group'); // Find the index of the "Rank Group" column
+
+            if (ageColumnIndex !== -1) {
+                const ageCell = cells[ageColumnIndex].textContent;
+                const age = parseInt(ageCell, 10);
+
+                // If the age is less than 15, hide the row
+                if (isNaN(age) || age < ageFilter) {
+                    showRow = false;
+                }
+            }
+
+            if (rankColumnIndex !== -1) {
+                const rankCell = cells[rankColumnIndex].textContent;
+
+                // If the rank doesn't match the specified rank group, hide the row
+                if (!rankGroupFilter.includes(rankCell)) {
+                    showRow = false;
+                }
+            }
+
+            // Show or hide the row based on both filters
+            row.style.display = showRow ? '' : 'none';
+        }
+    }
+</script>
+
+</body>
+</html>
