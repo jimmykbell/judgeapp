@@ -175,46 +175,32 @@
         }
     }
 
-    // Function to filter data based on age and rank group
-    function filterData() {
-        const ageFilter = 15; // Filter for age 15 or older
-        const rankGroupFilter = ['Black 2BD-3BD (9-59)', 'Black 4BD-5BD', 'Black 1BD (9-59)']; // Multiple rank groups
+function filterData() {
+    const ageFilter = 15; // Filter for age 15 or older
+    const rankGroupFilter = ['Black 2BD-3BD (9-59)', 'Black 4BD-5BD', 'Black 1BD (9-59)']; // Allowed rank groups
 
-        const tableRows = document.getElementById('dataTable').getElementsByTagName('tr');
+    // Filter the sheet data based on age and rank group
+    let filteredData = sheetData.filter(row => {
+        const age = parseInt(row['Competition Age'], 10);
+        const rank = row['Rank Group'];
+        return !isNaN(age) && age >= ageFilter && rankGroupFilter.includes(rank);
+    });
 
-        // Loop through each row (skip the header row)
-        for (let i = 1; i < tableRows.length; i++) {
-            const row = tableRows[i];
-            const cells = row.getElementsByTagName('td');
-            let showRow = true;
+    // Sort the filtered data by age (ascending) and then rank group
+    filteredData.sort((a, b) => {
+        const ageA = parseInt(a['Competition Age'], 10);
+        const ageB = parseInt(b['Competition Age'], 10);
+        const rankA = rankGroupFilter.indexOf(a['Rank Group']);
+        const rankB = rankGroupFilter.indexOf(b['Rank Group']);
 
-            // Assuming the age data is in the "Competition Age" column
-            const ageColumnIndex = columnNames.indexOf('Competition Age'); // Find the index of the "Age" column
-            const rankColumnIndex = columnNames.indexOf('Rank Group'); // Find the index of the "Rank Group" column
+        if (ageA !== ageB) return ageA - ageB; // Sort by age first
+        return rankA - rankB; // If age is the same, sort by rank group
+    });
 
-            if (ageColumnIndex !== -1) {
-                const ageCell = cells[ageColumnIndex].textContent;
-                const age = parseInt(ageCell, 10);
+    // Display the sorted, filtered data
+    displayData(filteredData);
+}
 
-                // If the age is less than 15, hide the row
-                if (isNaN(age) || age < ageFilter) {
-                    showRow = false;
-                }
-            }
-
-            if (rankColumnIndex !== -1) {
-                const rankCell = cells[rankColumnIndex].textContent;
-
-                // If the rank doesn't match the specified rank group, hide the row
-                if (!rankGroupFilter.includes(rankCell)) {
-                    showRow = false;
-                }
-            }
-
-            // Show or hide the row based on both filters
-            row.style.display = showRow ? '' : 'none';
-        }
-    }
 </script>
 
 </body>
