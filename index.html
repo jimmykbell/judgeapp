@@ -106,9 +106,10 @@
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                     sheetData = XLSX.utils.sheet_to_json(sheet);
                     columnNames = Object.keys(sheetData[0]);
+                    filteredData = sheetData;
                     generateColumnSelector();
                     generateDynamicFilters();
-                    applyFilters();
+                    displayData(filteredData);
                 };
                 reader.readAsBinaryString(file);
             }
@@ -151,48 +152,95 @@
         }
 
         function toggleColumnVisibility() {
-        return !isNaN(age) && age >= ageLimit && ranks.includes(rank);
-      }).sort((a, b) => {
-        const ageA = parseInt(a['Competition Age'], 10);
-        const ageB = parseInt(b['Competition Age'], 10);
-        const rankA = ranks.indexOf(a['Rank Group']);
-        const rankB = ranks.indexOf(b['Rank Group']);
-        return ageA - ageB || rankA - rankB;
-      });
-      displayData(displayedData);
-    }
+            const selected = Array.from(document.getElementById('columnSelector').selectedOptions).map(o => parseInt(o.value));
+            const rows = document.querySelectorAll('#dataTable tr');
+            rows.forEach(row => {
+                const cells = row.children;
+                selected.forEach(i => {
+                    if (cells[i]) cells[i].style.display = (cells[i].style.display === 'none' ? '' : 'none');
+                });
+            });
+        }
 
-    function resetTable() {
-      displayedData = [...sheetData];
-      displayData(displayedData);
-      document.getElementById('searchInput').value = '';
-    }
+        function generateDynamicFilters() {
+            const rankSet = new Set();
+            const divisionSet = new Set();
+            sheetData.forEach(row => {
+                if (row['Rank Group']) rankSet.add(row['Rank Group']);
+                if (row['Division']) divisionSet.add(row['Division']);
+            });
 
-    function searchTable() {
-      const input = document.getElementById('searchInput').value.toLowerCase();
-      displayedData = sheetData.filter(row => {
-        return (row['Name'] && row['Name'].toLowerCase().includes(input)) ||
-               (row['Division'] && row['Division'].toLowerCase().includes(input));
-      });
-      displayData(displayedData);
-    }
+            const rankFilter = document.getElementById('rankFilter');
+            const divisionFilter = document.getElementById('divisionFilter');
 
-    function exportToCSV() {
-      const rows = [['"' + columnNames.join('","') + '"']];
-      displayedData.forEach(row => {
-        const values = columnNames.map(key => '"' + (row[key] || '') + '"');
-        rows.push(values);
-      });
-      const csv = rows.map(e => e.join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'judges_filtered.csv';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-  </script>
+            rankSet.forEach(rank => {
+                const option = document.createElement('option');
+                option.value = rank;
+                option.textContent = rank;
+                rankFilter.appendChild(option);
+            });
+
+            divisionSet.forEach(div => {
+                const option = document.createElement('option');
+                option.value = div;
+                option.textContent = div;
+                divisionFilter.appendChild(option);
+            });
+        }
+
+        function applyFilters() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const ageFilter = document.getElementById('ageFilter').value;
+            const rankFilter = document.getElementById('rankFilter').value;
+            const divisionFilter = document.getElementById('divisionFilter').value;
+
+            filteredData = sheetData.filter(row => {
+                const nameMatch = (row['Name'] || '').toLowerCase().includes(search);
+                const divisionMatch = (row['Division'] || '').toLowerCase().includes(search);
+                const age = parseInt(row['Competition Age'], 10);
+
+                let agePass = true;
+                if (ageFilter === 'under15') agePass = age < 15;
+                else if (ageFilter === '15to17') agePass = age >= 15 && age <= 17;
+                else if (ageFilter === '18plus') agePass = age >= 18;
+
+                let rankPass = rankFilter ? row['Rank Group'] === rankFilter : true;
+                let divisionPass = divisionFilter ? row['Division'] === divisionFilter : true;
+
+                return (nameMatch || divisionMatch) && agePass && rankPass && divisionPass;
+            });
+
+            displayData(filteredData);
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('ageFilter').value = '';
+            document.getElementById('rankFilter').value = '';
+            document.getElementById('divisionFilter').value = '';
+            filteredData = sheetData;
+            displayData(filteredData);
+        }
+
+        function exportCSV() {
+            if (filteredData.length === 0) return alert("No data to export!");
+            const csvRows = [];
+            csvRows.push(columnNames.join(","));
+            filteredData.forEach(row => {
+                const values = columnNames.map(col => '"' + (row[col] || '') + '"');
+                csvRows.push(values.join(","));
+            });
+            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'filtered_data.csv');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+
 </body>
 </html>
