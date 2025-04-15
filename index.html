@@ -32,11 +32,17 @@
         button:hover {
             background-color: #45a049;
         }
-        select {
+        select, input[type="text"] {
             padding: 5px;
             margin-bottom: 10px;
+            margin-right: 10px;
             width: 200px;
-            height: 150px;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        tr.selected {
+            background-color: #d1ffd1 !important;
         }
     </style>
 </head>
@@ -44,164 +50,149 @@
 
     <h2>Upload an Excel File to see competitors and judges</h2>
 
-    <!-- File upload input -->
     <input type="file" id="excelFile" />
     <br>
 
-    <!-- Dropdown for selecting multiple columns -->
     <label for="columnSelector">Select Columns to Toggle Visibility:</label><br>
     <select id="columnSelector" multiple>
         <option value="">-- Select Columns --</option>
     </select>
-        <br>
+    <br>
     <button onclick="toggleColumnVisibility()">Toggle Visibility</button>
-<br>
-<!-- Filter button to show people 15 or older and of a specific rank -->
-<button onclick="filterData()">Judges</button>
+    <br>
 
-<!-- Table to display the parsed data -->
-<table id="dataTable">
-    <thead>
-        <tr>
-            <!-- Headers will be dynamically generated -->
-        </tr>
-    </thead>
-    <tbody>
-        <!-- Data rows will be inserted here -->
-    </tbody>
-</table>
+    <!-- Filters -->
+    <label for="searchInput">Search (Name or Division):</label>
+    <input type="text" id="searchInput" onkeyup="applyFilters()" placeholder="Search...">
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
-<script>
-    let sheetData = [];
-    let columnNames = [];
+    <select id="ageFilter" onchange="applyFilters()">
+        <option value="">All Ages</option>
+        <option value="under15">Under 15</option>
+        <option value="15to17">15-17</option>
+        <option value="18plus">18+</option>
+    </select>
 
-    // Function to handle the file upload and parse the Excel file
-    document.getElementById('excelFile').addEventListener('change', function (e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function (event) {
-                const data = event.target.result;
+    <select id="rankFilter" onchange="applyFilters()">
+        <option value="">All Ranks</option>
+    </select>
 
-                // Read the workbook from the binary data
-                const workbook = XLSX.read(data, { type: 'binary' });
+    <select id="divisionFilter" onchange="applyFilters()">
+        <option value="">All Divisions</option>
+    </select>
 
-                // Assuming the data is in the first sheet (change if necessary)
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    <button onclick="resetFilters()">Reset</button>
+    <button onclick="exportCSV()">Export CSV</button>
 
-                // Convert the sheet to JSON
-                sheetData = XLSX.utils.sheet_to_json(sheet);
+    <table id="dataTable">
+        <thead>
+            <tr></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
 
-                // Get the column names from the first row of the data
-                columnNames = Object.keys(sheetData[0]);
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script>
+        let sheetData = [];
+        let filteredData = [];
+        let columnNames = [];
 
-                // Log the loaded data to check
-                console.log(sheetData);
-
-                // Display the data and generate the column selector options
-                displayData(sheetData);
-                generateColumnSelector();
-            };
-            reader.readAsBinaryString(file);
-        }
-    });
-
-    // Function to display the data in the table
-    function displayData(data) {
-        const tableBody = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
-        const tableHeader = document.getElementById('dataTable').getElementsByTagName('thead')[0].getElementsByTagName('tr')[0];
-
-        // Clear previous table rows and headers
-        tableBody.innerHTML = '';
-        tableHeader.innerHTML = '';
-
-        // Create table headers based on column names
-        columnNames.forEach(function (header) {
-            const th = document.createElement('th');
-            th.textContent = header;
-            tableHeader.appendChild(th);
+        document.getElementById('excelFile').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    const data = event.target.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    sheetData = XLSX.utils.sheet_to_json(sheet);
+                    columnNames = Object.keys(sheetData[0]);
+                    generateColumnSelector();
+                    generateDynamicFilters();
+                    applyFilters();
+                };
+                reader.readAsBinaryString(file);
+            }
         });
 
-        // Loop through data and create table rows
-        data.forEach(function (row) {
-            const tr = document.createElement('tr');
-            columnNames.forEach(function (header) {
-                const td = document.createElement('td');
-                td.textContent = row[header];
-                tr.appendChild(td);
+        function displayData(data) {
+            const tableBody = document.querySelector('#dataTable tbody');
+            const tableHeader = document.querySelector('#dataTable thead tr');
+            tableBody.innerHTML = '';
+            tableHeader.innerHTML = '';
+
+            columnNames.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                tableHeader.appendChild(th);
             });
-            tableBody.appendChild(tr);
-        });
-    }
 
-    // Function to generate the column selector dropdown options
-    function generateColumnSelector() {
-        const columnSelector = document.getElementById('columnSelector');
-        columnSelector.innerHTML = '<option value="">-- Select Columns --</option>';  // Clear existing options
-
-        columnNames.forEach(function (column, index) {
-            const option = document.createElement('option');
-            option.value = index;  // Set the index as value to reference the column
-            option.textContent = column;
-            columnSelector.appendChild(option);
-        });
-    }
-
-    // Function to toggle column visibility based on the selected dropdown options
-    function toggleColumnVisibility() {
-        const columnSelector = document.getElementById('columnSelector');
-        const selectedIndices = Array.from(columnSelector.selectedOptions).map(option => parseInt(option.value));
-
-        if (selectedIndices.length > 0) {
-            // Loop through each selected index and toggle visibility
-            selectedIndices.forEach(function (columnIndex) {
-                // Toggle visibility for all rows and header for the selected column
-                const tableRows = document.getElementById('dataTable').getElementsByTagName('tr');
-                for (let i = 0; i < tableRows.length; i++) {
-                    const row = tableRows[i];
-                    const cell = row.getElementsByTagName('td')[columnIndex];
-                    if (cell) {
-                        cell.style.display = (cell.style.display === 'none' ? '' : 'none');  // Toggle visibility
-                    }
-                }
-
-                // Toggle visibility in the header row
-                const tableHeaders = document.getElementById('dataTable').getElementsByTagName('th');
-                if (tableHeaders[columnIndex]) {
-                    tableHeaders[columnIndex].style.display = (tableHeaders[columnIndex].style.display === 'none' ? '' : 'none');
-                }
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.title = `Name: ${row['Name'] || ''}\nAge: ${row['Competition Age'] || ''}\nRank: ${row['Rank Group'] || ''}`;
+                tr.onclick = () => tr.classList.toggle('selected');
+                columnNames.forEach(header => {
+                    const td = document.createElement('td');
+                    td.textContent = row[header];
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
             });
         }
-    }
 
-function filterData() {
-    const ageFilter = 15; // Filter for age 15 or older
-    const rankGroupFilter = ['Black 2BD-3BD (9-59)', 'Black 4BD-5BD', 'Black 1BD (9-59)']; // Allowed rank groups
+        function generateColumnSelector() {
+            const selector = document.getElementById('columnSelector');
+            selector.innerHTML = '';
+            columnNames.forEach((col, i) => {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = col;
+                selector.appendChild(option);
+            });
+        }
 
-    // Filter the sheet data based on age and rank group
-    let filteredData = sheetData.filter(row => {
-        const age = parseInt(row['Competition Age'], 10);
-        const rank = row['Rank Group'];
-        return !isNaN(age) && age >= ageFilter && rankGroupFilter.includes(rank);
-    });
-
-    // Sort the filtered data by age (ascending) and then rank group
-    filteredData.sort((a, b) => {
+        function toggleColumnVisibility() {
+        return !isNaN(age) && age >= ageLimit && ranks.includes(rank);
+      }).sort((a, b) => {
         const ageA = parseInt(a['Competition Age'], 10);
         const ageB = parseInt(b['Competition Age'], 10);
-        const rankA = rankGroupFilter.indexOf(a['Rank Group']);
-        const rankB = rankGroupFilter.indexOf(b['Rank Group']);
+        const rankA = ranks.indexOf(a['Rank Group']);
+        const rankB = ranks.indexOf(b['Rank Group']);
+        return ageA - ageB || rankA - rankB;
+      });
+      displayData(displayedData);
+    }
 
-        if (ageA !== ageB) return ageA - ageB; // Sort by age first
-        return rankA - rankB; // If age is the same, sort by rank group
-    });
+    function resetTable() {
+      displayedData = [...sheetData];
+      displayData(displayedData);
+      document.getElementById('searchInput').value = '';
+    }
 
-    // Display the sorted, filtered data
-    displayData(filteredData);
-}
+    function searchTable() {
+      const input = document.getElementById('searchInput').value.toLowerCase();
+      displayedData = sheetData.filter(row => {
+        return (row['Name'] && row['Name'].toLowerCase().includes(input)) ||
+               (row['Division'] && row['Division'].toLowerCase().includes(input));
+      });
+      displayData(displayedData);
+    }
 
-</script>
-
+    function exportToCSV() {
+      const rows = [['"' + columnNames.join('","') + '"']];
+      displayedData.forEach(row => {
+        const values = columnNames.map(key => '"' + (row[key] || '') + '"');
+        rows.push(values);
+      });
+      const csv = rows.map(e => e.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'judges_filtered.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  </script>
 </body>
 </html>
